@@ -1,0 +1,42 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+# 1. Handshake: Trigger OIDC to get the token
+- task: JfrogCliV2@1
+  name: jfStep
+  inputs:
+    jfrogPlatformConnection: 'MyServiceConnection'
+    command: 'jf rt ping'
+
+# 2. Deploy: Create a local file and push it to Artifactory
+- script: |
+    echo "Creating a sample file to deploy..."
+    echo "This file was deployed via Azure DevOps OIDC at $(date)" > deploy-test.txt
+
+    echo "Deploying to Artifactory..."
+    
+    # Define variables
+    TOKEN="$(jfStep.oidc_token)"
+    # Note: The URL must end with the filename you want to create in Artifactory
+    TARGET_URL="https://hts2.jfrog.io/artifactory/sharanya-oidc/deploy-test.txt"
+    
+    # Use -X PUT and --data-binary to upload the file
+    curl -X PUT -H "Authorization: Bearer $TOKEN" \
+         --data-binary @"deploy-test.txt" \
+         "$TARGET_URL"
+         
+    echo -e "\nDeployment attempt finished."
+  displayName: 'Deploy File via Curl (OIDC)'
+
+# 3. Verify: Optional check to see if the file is now reachable
+- script: |
+    TOKEN="$(jfStep.oidc_token)"
+    URL="https://hts2.jfrog.io/artifactory/sharanya-oidc/deploy-test.txt"
+    
+    echo "Verifying deployment by fetching the file back..."
+    curl -I -H "Authorization: Bearer $TOKEN" "$URL"
+  displayName: 'Verify Deployment'
