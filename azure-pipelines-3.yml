@@ -1,0 +1,26 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: JfrogCliV2@1
+  name: jfrogSetup
+  inputs:
+    jfrogPlatformConnection: 'serviceconnection'
+    # It's good practice to keep the setup task focused on configuration
+    command: 'jf rt ping' 
+
+- task: JfrogCliV2@1
+  displayName: 'Download Artifacts from Artifactory'
+  inputs:
+    jfrogPlatformConnection: 'serviceconnection'
+    # Replace 'my-repo/path/to/files/' with your actual Artifactory path
+    # The '*' wildcard downloads all files in that path
+    command: 'jf rt dl "sharanya-oidc/1mb.zip"'
