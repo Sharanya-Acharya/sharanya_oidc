@@ -5,34 +5,46 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Perform the OIDC handshake to get the $(jfStep.oidc_token)
+# 1. The Handshake: This generates the token
+# Ensure 'MyServiceConnection' is your actual service connection name
 - task: JfrogCliV2@1
   name: jfStep
   inputs:
     jfrogPlatformConnection: 'MyServiceConnection'
     command: 'jf rt ping'
 
-# 2. Use the OIDC token to download the file via curl
+# 2. The Correct Download Step
 - script: |
-    echo "Starting download for hi.sh..."
+    echo "Downloading hi.sh from Artifactory..."
     
-    # Using the token from the previous step
-    curl -H "Authorization: Bearer $(jfStep.oidc_token)" \
-         -L "https://hts2.jfrog.io/artifactory/sharanya-oidc/hi.sh" \
+    # We map the token to an environment variable 'TOKEN'
+    # Use quotes to ensure the shell treats it as a single string
+    TOKEN="$(jfStep.oidc_token)"
+    URL="https://hts2.jfrog.io/artifactory/sharanya-oidc/hi.sh"
+    
+    # Execute curl with the Bearer token
+    curl -H "Authorization: Bearer $TOKEN" \
+         -L "$URL" \
          --output hi.sh
          
-    echo "Download complete."
-  displayName: 'Download hi.sh via Curl'
+    echo "Download process finished."
+  displayName: 'Download File with Curl (OIDC)'
 
-# 3. Verify the file and its contents
+# 3. Verification Step
 - script: |
     if [ -f hi.sh ]; then
-      echo "File hi.sh exists. Printing content:"
+      echo "Success! File hi.sh found."
+      echo "--- File Content Start ---"
       cat hi.sh
-      # Make it executable if you need to run it later
-      chmod +x hi.sh
+      echo "--- File Content End ---"
+      
+      # Fail the pipeline if the file is just a JSON error message
+      if grep -q "errors" hi.sh; then
+        echo "##vso[task.logissue type=error]Artifactory returned an error. Check permissions!"
+        exit 1
+      fi
     else
-      echo "Error: hi.sh was not downloaded."
+      echo "##vso[task.logissue type=error]File hi.sh was never created."
       exit 1
     fi
-  displayName: 'Verify and Read File'
+  displayName: 'Verify Downloaded Content'
