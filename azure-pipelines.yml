@@ -1,8 +1,3 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - main
 
@@ -10,23 +5,32 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+# 1. Trigger the OIDC handshake to get the token
+# Ensure 'MyServiceConnection' is configured as an OIDC connection in Project Settings
 - task: JfrogCliV2@1
   name: jfStep
   inputs:
     jfrogPlatformConnection: 'MyServiceConnection'
-    command: 'jf rt ping'
+    command: 'jf rt ping' # Minimal command to exchange the OIDC token
 
-- task: PowerShell@2
-  inputs:
-    targetType: 'inline'
-    script: |
-      echo "OIDC Username: $($jfStep.oidc_user)"
-      echo "OIDC Token: $env:oidc_token"
+# 2. Use curl to download the file using the Bearer token
+- script: |
+    echo "Attempting to download hi.sh using OIDC token..."
+    
+    # Target URL from your request
+    FILE_URL="https://hts2.jfrog.io/artifactory/sharanya-oidc/hi.sh"
+    
+    # Use the token exported by the jfStep task
+    # Note: $(jfStep.oidc_token) is the variable provided by the JFrog extension
+    curl -H "Authorization: Bearer $(jfStep.oidc_token)" \
+         -L "$FILE_URL" \
+         --output hi.sh
+         
+    echo "Download complete."
+  displayName: 'Download File with Curl (OIDC)'
 
+# 3. Optional: Verify the downloaded file
+- script: |
+    ls -l hi.sh
+    cat hi.sh
+  displayName: 'Verify Content'
