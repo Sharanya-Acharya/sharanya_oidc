@@ -5,32 +5,34 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Trigger the OIDC handshake to get the token
-# Ensure 'MyServiceConnection' is configured as an OIDC connection in Project Settings
+# 1. Perform the OIDC handshake to get the $(jfStep.oidc_token)
 - task: JfrogCliV2@1
   name: jfStep
   inputs:
     jfrogPlatformConnection: 'MyServiceConnection'
-    command: 'jf rt ping' # Minimal command to exchange the OIDC token
+    command: 'jf rt ping'
 
-# 2. Use curl to download the file using the Bearer token
+# 2. Use the OIDC token to download the file via curl
 - script: |
-    echo "Attempting to download hi.sh using OIDC token..."
+    echo "Starting download for hi.sh..."
     
-    # Target URL from your request
-    FILE_URL="https://hts2.jfrog.io/artifactory/sharanya-oidc/hi.sh"
-    
-    # Use the token exported by the jfStep task
-    # Note: $(jfStep.oidc_token) is the variable provided by the JFrog extension
+    # Using the token from the previous step
     curl -H "Authorization: Bearer $(jfStep.oidc_token)" \
-         -L "$FILE_URL" \
+         -L "https://hts2.jfrog.io/artifactory/sharanya-oidc/hi.sh" \
          --output hi.sh
          
     echo "Download complete."
-  displayName: 'Download File with Curl (OIDC)'
+  displayName: 'Download hi.sh via Curl'
 
-# 3. Optional: Verify the downloaded file
+# 3. Verify the file and its contents
 - script: |
-    ls -l hi.sh
-    cat hi.sh
-  displayName: 'Verify Content'
+    if [ -f hi.sh ]; then
+      echo "File hi.sh exists. Printing content:"
+      cat hi.sh
+      # Make it executable if you need to run it later
+      chmod +x hi.sh
+    else
+      echo "Error: hi.sh was not downloaded."
+      exit 1
+    fi
+  displayName: 'Verify and Read File'
