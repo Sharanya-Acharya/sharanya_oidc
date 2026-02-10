@@ -5,30 +5,31 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. This task handles the OIDC handshake and creates the token.
+# 1. The 'name' property (jfAuth) is mandatory here.
+# It acts as the prefix for the output variable.
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
-    command: 'jf rt ping' 
+    command: 'jf rt ping' # This triggers the OIDC token exchange
 
-# 2. Use the token in a bash script by mapping it correctly.
+# 2. Map the output variable in the 'env' section
 - bash: |
-    echo "Starting OIDC download..."
+    echo "Starting OIDC-authenticated download..."
     
-    # We use $MY_TOKEN (the bash variable) instead of $(...) (the pipeline variable)
-    curl -fL -H "Authorization: Bearer $MY_TOKEN" \
+    # We use the $TOKEN variable which is defined in the 'env' block below
+    curl -fL -H "Authorization: Bearer $TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
     if [ -s 1mb.zip ]; then
-        echo "SUCCESS: 1mb.zip downloaded."
+        echo "Success! File downloaded."
         ls -lh 1mb.zip
     else
-        echo "ERROR: Download failed. File is 0 bytes."
+        echo "Error: Download failed or file is empty."
         exit 1
     fi
   displayName: 'OIDC Curl Download'
   env:
-    # THIS IS THE FIX: Map the secret output to a Bash environment variable
-    MY_TOKEN: $(jfAuth.oidc_token)
+    # SYNTAX: $(taskName.variableName)
+    TOKEN: $(jfAuth.oidc_token)
