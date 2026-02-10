@@ -5,39 +5,35 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Exchange OIDC Token (This works, as seen in your logs)
+# 1. Handshake: This task MUST be named 'jfAuth'
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
     command: 'jf rt ping' 
 
-# 2. Map and use the token in Bash
+# 2. The Download Step
 - bash: |
-    echo "Using OIDC Identity Token for download..."
+    echo "Checking OIDC Token..."
     
-    # We check if the token is empty first to be safe
-    if [ -z "$MY_TOKEN" ]; then
-      echo "ERROR: Token was not passed from the jfAuth task."
+    # If this prints '0', your Service Connection/Identity Mapping is broken
+    echo "Token Length: ${#TOKEN}"
+    
+    if [ -z "$TOKEN" ]; then
+      echo "ERROR: No token found. Check if OIDC is enabled on your Service Connection."
       exit 1
     fi
 
-    # The -H "Authorization: Bearer ..." is the correct OIDC format
-    # We use $MY_TOKEN which is the name we gave it in the 'env' section below
-    curl -fL -H "Authorization: Bearer $MY_TOKEN" \
+    echo "Running curl download..."
+    # -f fails the script on 401/404
+    # -v shows the headers (use only for debugging)
+    curl -fL -H "Authorization: Bearer $TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
-    if [ -s 1mb.zip ]; then
-        echo "SUCCESS: 1mb.zip downloaded."
-        ls -lh 1mb.zip
-    else
-        echo "ERROR: File is empty. Check JFrog permissions."
-        exit 1
-    fi
+    echo "Download success!"
+    ls -lh 1mb.zip
   displayName: 'OIDC Curl Download'
   env:
-    # THIS IS THE CRITICAL PART
-    # JFrog task exports 'oidc_token' to its outputs. 
-    # We map it to a Bash variable here.
-    MY_TOKEN: $(jfAuth.oidc_token)
+    # Use the specific output variable for OIDC tokens
+    TOKEN: $(jfAuth.oidc_token)
