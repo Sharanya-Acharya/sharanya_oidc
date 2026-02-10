@@ -1,7 +1,5 @@
 # Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+# Minimal pipeline using curl to download from Artifactory
 
 trigger:
 - main
@@ -10,17 +8,19 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-- task: JfrogCliV2@1
-  name: jfrogSetup
-  inputs:
-    jfrogPlatformConnection: 'serviceconnection'
-    # It's good practice to keep the setup task focused on configuration
-    command: 'jf rt ping' 
+- bash: |
+    echo "Downloading artifact from sharanya-oidc..."
+    
+    # Using curl with the provided credentials
+    # -f: Fail silently on server errors
+    # -L: Follow redirects
+    # -u: Username and Password
+    # -o: Output filename
+    
+    curl -fL -u "yashwithan:Password@123" \
+         "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
+         -o "1mb.zip"
 
-- task: JfrogCliV2@1
-  displayName: 'Download Artifacts from Artifactory'
-  inputs:
-    jfrogPlatformConnection: 'serviceconnection'
-    # Replace 'my-repo/path/to/files/' with your actual Artifactory path
-    # The '*' wildcard downloads all files in that path
-    command: 'jf rt dl "sharanya-oidc/1mb.zip"'
+    echo "Download finished. Listing files:"
+    ls -lh 1mb.zip
+  displayName: 'Curl Download from Artifactory'
