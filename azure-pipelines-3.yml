@@ -5,29 +5,25 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Handshake: This task MUST be named 'jfAuth'
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
     command: 'jf rt ping' 
 
-# 2. The Download Step
 - bash: |
-    echo "Checking OIDC Token..."
+    echo "Checking Token..."
     
-    # If this prints '0', your Service Connection/Identity Mapping is broken
-    echo "Token Length: ${#TOKEN}"
+    # This should be much longer than 20 if it's a real token
+    echo "Token Length: ${#OIDC_TOKEN}"
     
-    if [ -z "$TOKEN" ]; then
-      echo "ERROR: No token found. Check if OIDC is enabled on your Service Connection."
+    if [ ${#OIDC_TOKEN} -le 25 ]; then
+      echo "ERROR: Token is too short or empty. Handshake failed."
       exit 1
     fi
 
-    echo "Running curl download..."
-    # -f fails the script on 401/404
-    # -v shows the headers (use only for debugging)
-    curl -fL -H "Authorization: Bearer $TOKEN" \
+    # Using the token in the header
+    curl -fL -H "Authorization: Bearer $OIDC_TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
@@ -35,5 +31,5 @@ steps:
     ls -lh 1mb.zip
   displayName: 'OIDC Curl Download'
   env:
-    # Use the specific output variable for OIDC tokens
-    TOKEN: $(jfAuth.oidc_token)
+    # Try the global variable name instead of the task-specific one
+    OIDC_TOKEN: $(JFROG_PLATFORM_ACCESS_TOKEN)
