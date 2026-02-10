@@ -1,6 +1,3 @@
-# Starter pipeline
-# Minimal pipeline using curl to download from Artifactory
-
 trigger:
 - main
 
@@ -8,19 +5,30 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
+# 1. Exchange the Azure OIDC token for a JFrog Access Token
+# We use the JFrog task to handle the handshake automatically.
+- task: JfrogCliV2@1
+  name: jfrogAuth
+  inputs:
+    jfrogPlatformConnection: 'serviceconnection' # Use your OIDC service connection name
+    command: 'jf rt ping' # This triggers the OIDC exchange
+
+# 2. Use Curl with the Bearer Token provided by the OIDC exchange
 - bash: |
-    echo "Downloading artifact from sharanya-oidc..."
+    echo "Using OIDC Identity Token for download..."
     
-    # Using curl with the provided credentials
-    # -f: Fail silently on server errors
-    # -L: Follow redirects
-    # -u: Username and Password
-    # -o: Output filename
+    # The JfrogCliV2 task automatically sets the JFROG_PLATFORM_ACCESS_TOKEN 
+    # environment variable after a successful OIDC handshake.
     
-    curl -fL -u "yashwithan:Password@123" \
+    curl -fL -H "Authorization: Bearer $(JFROG_PLATFORM_ACCESS_TOKEN)" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
-    echo "Download finished. Listing files:"
-    ls -lh 1mb.zip
-  displayName: 'Curl Download from Artifactory'
+    if [ -s 1mb.zip ]; then
+        echo "Success! File downloaded securely using OIDC."
+        ls -lh 1mb.zip
+    else
+        echo "Error: Downloaded file is empty. Check OIDC Identity Mappings in JFrog."
+        exit 1
+    fi
+  displayName: 'OIDC Curl Download'
