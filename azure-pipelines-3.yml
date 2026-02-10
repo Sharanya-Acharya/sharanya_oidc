@@ -5,36 +5,38 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Exchange the Azure OIDC token for a JFrog Access Token
+# 1. This task performs the OIDC handshake. 
+# It creates a temporary JFrog Access Token for this specific job.
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
-    command: 'jf rt ping' # Handshake to generate the token
+    command: 'jf rt ping' # This command forces the OIDC exchange
 
-# 2. Map the token output to an environment variable and run curl
+# 2. Use the token in a bash script. 
+# The JFrog task exports the token as JF_ACCESS_TOKEN or JF_TOKEN.
 - bash: |
     echo "Starting OIDC-authenticated download..."
     
-    # Check if the token was actually captured
-    if [ -z "$TOKEN" ]; then
-      echo "ERROR: The OIDC token is empty. Check your Service Connection."
+    # Check if the token variable exists
+    if [ -z "$JF_TOKEN" ]; then
+      echo "ERROR: OIDC token not found in environment."
       exit 1
     fi
 
-    # -H "Authorization: Bearer ..." is the correct way for OIDC
-    curl -fL -H "Authorization: Bearer $TOKEN" \
+    # -H "Authorization: Bearer $JF_TOKEN" is the proper OIDC format
+    curl -v -fL -H "Authorization: Bearer $JF_TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
     if [ -s 1mb.zip ]; then
-        echo "Success: 1mb.zip downloaded via OIDC."
+        echo "Success! Downloaded 1mb.zip"
         ls -lh 1mb.zip
     else
-        echo "Error: File is empty. The token might not have permissions for this path."
+        echo "Error: File is empty (401 error likely)."
         exit 1
     fi
   displayName: 'OIDC Curl Download'
   env:
-    # This is the secret sauce: Mapping the task output to a Bash variable
-    TOKEN: $(jfAuth.oidc_token)
+    # This maps the secret token from the handshake task to your script
+    JF_TOKEN: $(JFROG_PLATFORM_ACCESS_TOKEN)
