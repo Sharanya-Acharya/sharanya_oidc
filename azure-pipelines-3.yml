@@ -5,31 +5,32 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. The 'name' property (jfAuth) is mandatory here.
-# It acts as the prefix for the output variable.
+# 1. This task handles the OIDC handshake from your guide automatically.
+# No need to write manual curl exchanges for the Azure token!
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
-    jfrogPlatformConnection: 'serviceconnection'
-    command: 'jf rt ping' # This triggers the OIDC token exchange
+    jfrogPlatformConnection: 'serviceconnection' # Ensure this connection is set to OIDC in project settings
+    command: 'jf rt ping' 
 
-# 2. Map the output variable in the 'env' section
+# 2. Now use the token the task just generated in your curl command.
 - bash: |
-    echo "Starting OIDC-authenticated download..."
+    echo "Starting download using OIDC-exchanged token..."
     
-    # We use the $TOKEN variable which is defined in the 'env' block below
-    curl -fL -H "Authorization: Bearer $TOKEN" \
+    # We use the variable we mapped in the 'env' section below.
+    # This matches the 'Authorization: Bearer' format from your Rovo guide.
+    curl -fL -H "Authorization: Bearer $MY_TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
     if [ -s 1mb.zip ]; then
-        echo "Success! File downloaded."
+        echo "SUCCESS: 1mb.zip downloaded."
         ls -lh 1mb.zip
     else
-        echo "Error: Download failed or file is empty."
+        echo "ERROR: Download failed. Check JFrog Identity Mapping."
         exit 1
     fi
-  displayName: 'OIDC Curl Download'
+  displayName: 'OIDC Download via Curl'
   env:
-    # SYNTAX: $(taskName.variableName)
-    TOKEN: $(jfAuth.oidc_token)
+    # This is the "secret sauce": the task exports 'oidc_token' after the exchange.
+    MY_TOKEN: $(jfAuth.oidc_token)
