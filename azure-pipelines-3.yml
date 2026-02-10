@@ -5,30 +5,36 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Exchange the OIDC token
+# 1. Exchange the Azure OIDC token for a JFrog Access Token
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
-    command: 'jf rt ping'
+    command: 'jf rt ping' # Handshake to generate the token
 
-# 2. Download with Curl (using the token correctly)
+# 2. Map the token output to an environment variable and run curl
 - bash: |
-    echo "Starting OIDC download..."
+    echo "Starting OIDC-authenticated download..."
     
-    # We use the variable mapped in the 'env' section below
-    # We use -v (verbose) to see exactly why it fails if it does
-    curl -v -fL -H "Authorization: Bearer $MY_TOKEN" \
+    # Check if the token was actually captured
+    if [ -z "$TOKEN" ]; then
+      echo "ERROR: The OIDC token is empty. Check your Service Connection."
+      exit 1
+    fi
+
+    # -H "Authorization: Bearer ..." is the correct way for OIDC
+    curl -fL -H "Authorization: Bearer $TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
     if [ -s 1mb.zip ]; then
-        echo "SUCCESS: 1mb.zip downloaded."
+        echo "Success: 1mb.zip downloaded via OIDC."
+        ls -lh 1mb.zip
     else
-        echo "ERROR: File is 0 bytes."
+        echo "Error: File is empty. The token might not have permissions for this path."
         exit 1
     fi
   displayName: 'OIDC Curl Download'
   env:
-    # IMPORTANT: The JFrog task exports 'oidc_token' to the step outputs
-    MY_TOKEN: $(jfAuth.oidc_token)
+    # This is the secret sauce: Mapping the task output to a Bash variable
+    TOKEN: $(jfAuth.oidc_token)
