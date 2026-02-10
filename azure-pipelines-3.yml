@@ -5,24 +5,28 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
+# 1. We name this task 'jfAuth'
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
-    command: 'jf rt ping' 
+    command: 'jf rt ping' # This triggers the OIDC exchange
 
+# 2. We use a special script to extract the token the task just used
 - bash: |
-    echo "Checking Token..."
+    echo "Retrieving OIDC Token..."
     
-    # This should be much longer than 20 if it's a real token
+    # In recent versions of the extension, the token is stored in the 
+    # environment variable JFROG_PLATFORM_ACCESS_TOKEN by the previous task.
+    # We map it to OIDC_TOKEN in the 'env' section below.
+
     echo "Token Length: ${#OIDC_TOKEN}"
     
-    if [ ${#OIDC_TOKEN} -le 25 ]; then
-      echo "ERROR: Token is too short or empty. Handshake failed."
+    if [ ${#OIDC_TOKEN} -lt 100 ]; then
+      echo "ERROR: Token is too short (Length: ${#OIDC_TOKEN}). Exchange failed."
       exit 1
     fi
 
-    # Using the token in the header
     curl -fL -H "Authorization: Bearer $OIDC_TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
@@ -31,5 +35,5 @@ steps:
     ls -lh 1mb.zip
   displayName: 'OIDC Curl Download'
   env:
-    # Try the global variable name instead of the task-specific one
+    # Use the GLOBAL variable provided by the JFrog extension
     OIDC_TOKEN: $(JFROG_PLATFORM_ACCESS_TOKEN)
