@@ -5,36 +5,37 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. Exchange the OIDC token.
-# We name the task 'jfAuth' so we can reference its specific outputs.
+# 1. Exchange the OIDC token
+# We still need this to "activate" the OIDC handshake for the job
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
     jfrogPlatformConnection: 'serviceconnection'
-    command: 'jf rt ping' 
+    command: 'jf rt ping'
 
-# 2. Use a direct curl with the CORRECT token mapping.
+# 2. Use the token via the global environment variable
 - bash: |
-    echo "Retrieving OIDC Token..."
+    echo "Starting OIDC-authenticated download..."
     
-    # Check if the token is present
-    if [ -z "$MY_TOKEN" ]; then
-      echo "ERROR: Token variable is empty. OIDC handshake failed."
+    # The JFrog extension automatically sets this global variable 
+    # for all subsequent steps in the job.
+    TOKEN=$JFROG_PLATFORM_ACCESS_TOKEN
+    
+    echo "Token Length: ${#TOKEN}"
+
+    if [ ${#TOKEN} -lt 100 ]; then
+      echo "ERROR: Token exchange failed. Length is too short."
       exit 1
     fi
 
-    echo "Token detected. Length: ${#MY_TOKEN}"
-
-    # OIDC requires the 'Authorization: Bearer' header
-    # We use -f to fail the task if the server returns 401
-    curl -fL -H "Authorization: Bearer $MY_TOKEN" \
+    # Using -fL to follow redirects and fail on 401
+    curl -fL -H "Authorization: Bearer $TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
 
-    echo "Success! File downloaded."
+    echo "Download finished successfully."
     ls -lh 1mb.zip
   displayName: 'OIDC Curl Download'
   env:
-    # Try mapping the task's specific output variable
-    # If this doesn't work, we'll try $(JFROG_PLATFORM_ACCESS_TOKEN)
-    MY_TOKEN: $(jfAuth.oidc_token)
+    # This is the standard variable name populated by the JFrog extension
+    JFROG_PLATFORM_ACCESS_TOKEN: $(JFROG_PLATFORM_ACCESS_TOKEN)
