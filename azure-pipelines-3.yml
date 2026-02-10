@@ -5,20 +5,25 @@ pool:
   vmImage: ubuntu-latest
 
 steps:
-# 1. This task handles the OIDC handshake from your guide automatically.
-# No need to write manual curl exchanges for the Azure token!
+# 1. Exchange OIDC Token (This works, as seen in your logs)
 - task: JfrogCliV2@1
   name: jfAuth
   inputs:
-    jfrogPlatformConnection: 'serviceconnection' # Ensure this connection is set to OIDC in project settings
+    jfrogPlatformConnection: 'serviceconnection'
     command: 'jf rt ping' 
 
-# 2. Now use the token the task just generated in your curl command.
+# 2. Map and use the token in Bash
 - bash: |
-    echo "Starting download using OIDC-exchanged token..."
+    echo "Using OIDC Identity Token for download..."
     
-    # We use the variable we mapped in the 'env' section below.
-    # This matches the 'Authorization: Bearer' format from your Rovo guide.
+    # We check if the token is empty first to be safe
+    if [ -z "$MY_TOKEN" ]; then
+      echo "ERROR: Token was not passed from the jfAuth task."
+      exit 1
+    fi
+
+    # The -H "Authorization: Bearer ..." is the correct OIDC format
+    # We use $MY_TOKEN which is the name we gave it in the 'env' section below
     curl -fL -H "Authorization: Bearer $MY_TOKEN" \
          "https://hts2.jfrog.io/artifactory/sharanya-oidc/1mb.zip" \
          -o "1mb.zip"
@@ -27,10 +32,12 @@ steps:
         echo "SUCCESS: 1mb.zip downloaded."
         ls -lh 1mb.zip
     else
-        echo "ERROR: Download failed. Check JFrog Identity Mapping."
+        echo "ERROR: File is empty. Check JFrog permissions."
         exit 1
     fi
-  displayName: 'OIDC Download via Curl'
+  displayName: 'OIDC Curl Download'
   env:
-    # This is the "secret sauce": the task exports 'oidc_token' after the exchange.
+    # THIS IS THE CRITICAL PART
+    # JFrog task exports 'oidc_token' to its outputs. 
+    # We map it to a Bash variable here.
     MY_TOKEN: $(jfAuth.oidc_token)
